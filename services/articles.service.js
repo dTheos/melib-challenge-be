@@ -1,7 +1,7 @@
 import axios from "axios";
 import axiosRetry from "axios-retry";
 import LRU from "lru-cache";
-
+import L from "../logger.js";
 
 const options = {
     max: 100,
@@ -11,7 +11,7 @@ const cache = new LRU(options);
 
 axiosRetry(axios, { retries: 3 });
 
-export async function getArticles(page, limit) {
+export async function fetchArticles(page, limit) {
     let lastIndex = page * limit;
     let startIndex = lastIndex - limit;
 
@@ -20,16 +20,19 @@ export async function getArticles(page, limit) {
     };
 
     try {
-        if (cache.get(page)) {
-            articles.content = cache.get(page);
+        if (cache.get("articles")) {
+            L.info("Pidiendo información de cache");
+            articles.content = cache.get("articles").slice(startIndex, lastIndex);
             return articles;
         } else {
-            let { data } = await axios.get('https://api.spaceflightnewsapi.net/v3/articles?_limit=100');
-            cache.set(page, data.slice(startIndex, lastIndex).map(({ url, title, imageUrl }) => { return { url, title, imageUrl } }));
-            articles.content = cache.get(page);
+            L.info("Pidiendo información de API")
+            let { data } = await axios.get(`https://api.spaceflightnewsapi.net/v3/articles?_limit=${articles.totalArticles}`);
+            cache.set("articles", data.map(({ url, title, imageUrl }) => { return { url, title, imageUrl } }));
+            articles.content = cache.get("articles").slice(startIndex, lastIndex);
             return articles;
         }
     } catch (err) {
-        throw Error(err)
+        L.error(err);
+        throw Error(err);
     }
 }
